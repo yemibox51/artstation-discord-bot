@@ -3,57 +3,42 @@
 import requests, os, bs4, random
 import lxml
 
-#url = 'https://www.artstation.com/doczenith'  # starting url
-os.makedirs('artstation-front-page', exist_ok=True)  # store comics in ./xkcd
+# Ouptut: Image link + Title of Image + Author + Image.png
+# Output in code: image_link + title_of_piece + author_name + artwork_id.png in message
 
-url = "https://www.artstation.com/artwork.rss?page={}".format(98)#random.randint(1,100))
+#url = 'https://www.artstation.com/doczenith'  # starting url
+file_path = 'artstation-front-page/'
+os.makedirs(file_path, exist_ok=True)
+
+url = "https://www.artstation.com/artwork.rss?page={}".format(random.randint(1,1000))
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0'
 }
+res = requests.get(url, headers=headers)
 
-proxies = {
-    'http': 'http://127.0.0.1:7890',
-    'https': 'http://127.0.0.1:7890'
-}
+res.raise_for_status() # checks to see if that website works, if it doesn't will stop program
 
-print(url)
-for i in range(0, 30):
-    # Download the page.
-    #ses = requests.session()
-    #ses.headers.update(headers)
-    # ses.proxies.update(proxies)
-    res = requests.get(url, headers=headers)
-    # res = requests.get(url, headers=headers)
-    #res = ses
-    res.raise_for_status()
-    # checks to see if that website works, if it doesn't will stop program
+soup = bs4.BeautifulSoup(res.text, 'lxml-xml') # parse the xml page
+list_of_images = soup.select('item > link')
 
-    soup = bs4.BeautifulSoup(res.text, 'lxml-xml')  # parse the html page
+random_image = random.randint(0,len(list_of_images)-1)
+image_link = list_of_images[random_image].text
+artwork_id = image_link.split("/")[-1]
 
-    print(soup)
-    # Find the URL of the comic image.
-    list_of_images = soup.select('item > link')
-    print(list_of_images)
-    print(res.json)
-    break
-    comicElem = soup.select('#comic img')
-    if comicElem == []:
-        print('Could not find comic image.')
-    else:
-        comicUrl = 'https:' + comicElem[0].get('src')
-        # Download the image.
-        print('Downloading image %s...' % (comicUrl))
-        res = requests.get(comicUrl)
-        res.raise_for_status()
+new_url = "https://www.artstation.com/projects/{}.json".format(artwork_id)
 
-        # Save the image to ./xkcd.
-        imageFile = open(os.path.join('xkcd', os.path.basename(comicUrl)), 'wb')
-        for chunk in res.iter_content(100000):
-            imageFile.write(chunk)
-        imageFile.close()
+req = requests.get(new_url, headers=headers)
+js = req.json()
 
-    # Get the Prev button's url.
-    prevLink = soup.select('a[rel="prev"]')[0]
-    url = 'https://xkcd.com' + prevLink.get('href')
+author_name = js['user']['full_name']
+title_of_piece = js['title']
+message = "{} by {}".format(title_of_piece, author_name)
 
-print('Done.')
+assets = js["assets"]
+image_url = assets[0]["image_url"]
+
+# Downloading the image
+image = requests.get(image_url, headers=headers)
+full_file_path = file_path + "{}.png".format(artwork_id)
+with open(full_file_path, "wb") as file:
+    file.write(image.content)
